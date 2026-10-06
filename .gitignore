@@ -1,0 +1,44 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+logs/*
+!logs/.gitkeep
+reports/*
+!reports/.gitkeep
+mlruns/
+mlartifacts/
+*.db
+.env
+.pytest_cache/
+.ruff_cache/
+
+# Virtual Environments
+.venv/
+venv/
+mlfinal*/
+
+# Data files
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# Database & Logs
+*.db
+mlflow.db
+.prefect/
+logs/*
+!logs/.gitkeep
+reports/*
+!reports/.gitkeep
+
+# Python cache
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
