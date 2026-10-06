@@ -1,0 +1,43 @@
+groups:
+# กฎแจ้งเตือน: ด้านสถานะระบบ (เทียบ SLO) และด้านคุณภาพโมเดล
+  - name: system-health
+    rules:
+      - alert: ApiDown
+        expr: up{job="readmission-api"} == 0
+        for: 30s
+        labels: {severity: critical}
+        annotations: {summary: "Readmission API is down"}
+      - alert: LatencyP95AboveSLO            # SLO: p95 < 300 ms
+        expr: histogram_quantile(0.95, sum(rate(api_request_latency_seconds_bucket{endpoint="/predict"}[5m])) by (le)) > 0.3
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: "p95 latency above 300 ms SLO"}
+      - alert: ErrorRateAboveSLO             # SLO: 5xx < 1%
+        expr: sum(rate(api_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(api_requests_total[5m])), 1e-9) > 0.01
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "5xx error rate above 1% SLO"}
+      - alert: InvalidInputSpike
+        expr: rate(api_invalid_input_total[5m]) / clamp_min(sum(rate(api_requests_total[5m])), 1e-9) > 0.05
+        for: 1m
+        labels: {severity: warning}
+        annotations: {summary: ">5% of requests rejected by schema (upstream data problem?)"}
+  - name: model-quality
+    rules:
+      - alert: DataDrift
+        expr: monitoring_value{metric="data_drift"} == 1
+        labels: {severity: warning}
+        annotations: {summary: ">=20% of features have PSI >= 0.2"}
+      - alert: PredictionDrift
+        expr: monitoring_value{metric="prediction_drift"} == 1
+        labels: {severity: warning}
+        annotations: {summary: "Risk-score distribution PSI >= 0.2"}
+      - alert: ConceptDrift
+        expr: monitoring_value{metric="concept_drift"} == 1
+        labels: {severity: critical}
+        annotations: {summary: "Live ROC-AUC dropped >= 0.05 vs. test -> retrain triggered"}
+      - alert: FollowUpRateAnomaly           # ธุรกิจ: พยาบาลรับได้ ~20% ถ้าระบบแนะนำเกินมากจะรับไม่ไหว
+        expr: rate(prediction_follow_up_total[30m]) / clamp_min(rate(prediction_risk_score_count[30m]), 1e-9) > 0.35
+        for: 10m
+        labels: {severity: warning}
+        annotations: {summary: "More than 35% flagged for follow-up (capacity 20%)"}
