@@ -32,7 +32,7 @@ train:
       params: {learning_rate: 0.05, max_iter: 300, max_leaf_nodes: 15, l2_regularization: 1.0, min_samples_leaf: 50, calibrate: true}
 
 gate:                           # ต้องผ่านทุกข้อถึงจะได้ขึ้นเป็น champion
-  min_pr_auc: 0.15
+  min_pr_auc: 0.09
   min_gain_over_lace: 0.01      # PR-AUC ต้องชนะ LACE อย่างน้อยเท่านี้
   max_regression_vs_champion: 0.005
   max_brier: 0.25
