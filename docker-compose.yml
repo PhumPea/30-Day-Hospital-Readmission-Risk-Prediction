@@ -1,0 +1,100 @@
+# รันทั้งระบบคำสั่งเดียว:  docker compose up --build
+# ไม่มีเน็ต / ใช้ข้อมูลจำลอง:  PIPELINE_ARGS=--synthetic docker compose up --build
+#
+# ลำดับการเริ่ม: mlflow + prefect -> pipeline (เทรนเสร็จแล้วปิด) -> api -> monitor
+
+# ค่าที่ทุก service ใช้ร่วมกัน
+x-app: &app
+  image: readmit:latest
+  environment: &env
+    MLFLOW_TRACKING_URI: http://mlflow:5000
+    PREFECT_API_URL: http://prefect:4200/api
+    ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+    GIT_COMMIT: ${GIT_COMMIT:-local}
+  volumes:
+    - ./data:/app/data
+    - ./reports:/app/reports
+    - ./logs:/app/logs
+
+services:
+  mlflow:              # เก็บผลการทดลอง + model registry
+    <<: *app
+    build:
+      context: .
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-local}
+    command: >
+      mlflow server --host 0.0.0.0 --port 5000 --workers 1
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --artifacts-destination /mlflow/artifacts --serve-artifacts
+      --allowed-hosts mlflow:5000,mlflow,localhost:5000,localhost,127.0.0.1:5000
+    volumes: [mlflow-data:/mlflow]
+    ports: ["5000:5000"]
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:5000/health"]
+      interval: 10s
+      retries: 20
+
+  prefect:             # หน้า UI ดู DAG ที่รัน
+    <<: *app
+    command: prefect server start --host 0.0.0.0 --port 4200
+    environment:
+      PREFECT_UI_API_URL: http://localhost:4200/api
+      PREFECT_SERVER_ANALYTICS_ENABLED: "false"
+    volumes: [prefect-data:/root/.prefect]
+    ports: ["4200:4200"]
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:4200/api/health"]
+      interval: 10s
+      retries: 20
+
+  pipeline:            # ข้อมูลดิบ -> validate -> split -> train -> gate -> promote แล้วจบ
+    <<: *app
+    command: sh -c "python -m pipelines.flow ${PIPELINE_ARGS:-}"
+    restart: "no"
+    depends_on:
+      mlflow: {condition: service_healthy}
+      prefect: {condition: service_healthy}
+
+  api:                 # รอ pipeline เทรนเสร็จก่อนถึงจะเริ่ม
+    <<: *app
+    ports: ["8000:8000"]
+    depends_on:
+      pipeline: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8000/ready"]
+      interval: 10s
+      retries: 20
+    restart: unless-stopped
+
+  monitor:             # วนตรวจ drift + เทรนใหม่ตามนโยบาย
+    <<: *app
+    command: python -m pipelines.scheduler
+    environment:
+      <<: *env
+      MONITOR_INTERVAL_SECONDS: ${MONITOR_INTERVAL_SECONDS:-300}
+    depends_on:
+      api: {condition: service_healthy}
+    restart: unless-stopped
+
+  prometheus:          # เก็บ metrics + alert rules
+    image: prom/prometheus:v3.5.0
+    volumes:
+      - ./infra/prometheus:/etc/prometheus:ro
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    ports: ["9090:9090"]
+    depends_on: [api]
+
+  grafana:             # dashboard (เข้าได้เลยไม่ต้อง login)
+    image: grafana/grafana:12.1.0
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports: ["3000:3000"]
+    depends_on: [prometheus]
+
+volumes:
+  mlflow-data:
+  prefect-data:
