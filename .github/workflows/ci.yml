@@ -7,6 +7,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# สิทธิ์ขั้นต่ำที่ต้องใช้: อ่านโค้ด + push Docker image ขึ้น GHCR (job docker)
+permissions:
+  contents: read
+  packages: write
+
 env:
   PYTHON_VERSION: "3.12"
   MLFLOW_TRACKING_URI: sqlite:///mlflow-ci.db
@@ -16,9 +21,6 @@ env:
 jobs:
   code-quality:                       # ด่าน 1/3: คุณภาพโค้ด
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -68,7 +70,36 @@ jobs:
           key: raw-${{ hashFiles('params.yaml') }}
       - name: Run full DAG (ingest -> validate -> split -> train -> gate)
         run: python -m pipelines.flow
+      # ตารางผ่าน/ไม่ผ่านของทุกโมเดล แสดงในหน้า Summary ของ run (ขึ้นแม้ gate ไม่ผ่าน)
+      - name: Per-model gate table
+        if: always()
+        run: |
+          python - >> $GITHUB_STEP_SUMMARY <<'EOF'
+          import csv, yaml
+          g = yaml.safe_load(open("params.yaml"))["gate"]
+          rows = list(csv.DictReader(open("reports/experiments.csv")))
+          lace = next(float(r["val_pr_auc"]) for r in rows if r["name"] == "baseline_lace")
+          def m(ok):
+              return "✅" if ok else "❌"
+          print("### ผลแต่ละโมเดลเทียบเกณฑ์ gate (validation set)")
+          print(f"เกณฑ์: PR-AUC ≥ {g['min_pr_auc']} · ชนะ LACE ≥ {g['min_gain_over_lace']} · "
+                f"Brier ≤ {g['max_brier']} · Fairness gap ≤ {g['max_fairness_gap']}")
+          print()
+          print("| โมเดล | PR-AUC | ชนะ LACE | Brier | Fairness gap | ผล |")
+          print("|---|---|---|---|---|---|")
+          for r in rows:
+              pr, br, fg = float(r["val_pr_auc"]), float(r["val_brier"]), float(r["val_fairness_gap"])
+              is_lace = r["name"] == "baseline_lace"
+              c = [pr >= g["min_pr_auc"],
+                   is_lace or pr >= lace + g["min_gain_over_lace"],
+                   br <= g["max_brier"],
+                   fg <= g["max_fairness_gap"]]
+              beat = "—" if is_lace else m(c[1])
+              print(f"| {r['name']} | {pr:.3f} {m(c[0])} | {beat} | {br:.3f} {m(c[2])} | {fg:.3f} {m(c[3])} | {m(all(c))} |")
+          EOF
+      # ผล gate ของโมเดลที่ถูกเลือก (แสดงเหตุผลเสมอ แม้ขั้นก่อนหน้าจะ fail)
       - name: Enforce model quality gate
+        if: always()
         run: python scripts/check_gate.py
       - uses: actions/upload-artifact@v4
         if: always()
