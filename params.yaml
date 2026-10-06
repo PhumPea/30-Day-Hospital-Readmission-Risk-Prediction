@@ -1,0 +1,61 @@
+# ค่าตั้งค่าทั้งหมดของโปรเจครวมไว้ที่นี่ (เกณฑ์ gate, SLO, drift ฯลฯ) แก้ที่เดียวพอ
+seed: 42
+
+data:
+  url: https://archive.ics.uci.edu/static/public/296/diabetes+130-us+hospitals+for+years+1999-2008.zip
+  raw_file: data/raw/diabetic_data.csv
+  processed_dir: data/processed
+  min_rows: 5000
+  max_missing_rate: 0.6        # ค่าหายต่อคอลัมน์ (medical_specialty ของจริงหายราว 49%)
+  # discharge ที่เป็น เสียชีวิต / hospice ตัดออก เพราะกลับมารักษาซ้ำไม่ได้
+  exclude_discharge_ids: [11, 13, 14, 19, 20, 21]
+
+split:                          # แบ่งตามผู้ป่วย (คนเดียวกันไม่อยู่ 2 ชุด)
+  test_size: 0.15
+  val_size: 0.15
+
+train:
+  experiment_name: readmission-30d
+  top_k_frac: 0.20              # พยาบาลโทรติดตามได้ประมาณ 20% ของคนไข้ที่กลับบ้านต่อวัน
+  experiments:
+    - name: logreg_balanced
+      model: logreg
+      params: {C: 1.0, class_weight: balanced, max_iter: 2000}
+    - name: hgb_default
+      model: hgb
+      params: {learning_rate: 0.1, max_iter: 200, max_leaf_nodes: 31, class_weight: balanced}
+    - name: hgb_tuned
+      model: hgb
+      params: {learning_rate: 0.05, max_iter: 400, max_leaf_nodes: 15, l2_regularization: 1.0, min_samples_leaf: 50, class_weight: balanced}
+    - name: hgb_calibrated        # ไม่ถ่วงน้ำหนัก class + calibrate -> ความน่าจะเป็นเชื่อถือได้มากขึ้น
+      model: hgb
+      params: {learning_rate: 0.05, max_iter: 300, max_leaf_nodes: 15, l2_regularization: 1.0, min_samples_leaf: 50, calibrate: true}
+
+gate:                           # ต้องผ่านทุกข้อถึงจะได้ขึ้นเป็น champion
+  min_pr_auc: 0.15
+  min_gain_over_lace: 0.01      # PR-AUC ต้องชนะ LACE อย่างน้อยเท่านี้
+  max_regression_vs_champion: 0.005
+  max_brier: 0.25
+  max_model_size_mb: 50
+  max_p95_latency_ms: 50        # เวลาทำนาย 1 แถว (วัดแบบ offline)
+  max_fairness_gap: 0.10        # recall@k ระหว่างกลุ่มเพศ / เชื้อชาติ ห้ามต่างกันเกินนี้
+
+registry:
+  model_name: readmission-risk
+  champion_alias: champion
+  previous_alias: previous
+
+monitoring:
+  psi_threshold: 0.2            # PSI ของฟีเจอร์ที่ถือว่า drift
+  drift_share_threshold: 0.2    # ถ้าฟีเจอร์ drift >= 20% = data drift
+  pred_psi_threshold: 0.2       # PSI ของคะแนนที่ทำนาย
+  min_labels: 300               # ต้องมี label อย่างน้อยเท่านี้ถึงจะตัดสิน concept drift
+  perf_drop_threshold: 0.05     # ROC-AUC ตกเกินนี้ = concept drift
+  label_shift_threshold: 0.05   # อัตรากลับมาซ้ำเปลี่ยนเกิน 5 จุด
+  window_size: 2000
+
+slo:                            # เป้าหมายบริการของ API
+  p95_latency_ms: 300
+  p50_latency_ms: 100
+  error_rate: 0.01
+  min_throughput_rps: 30
