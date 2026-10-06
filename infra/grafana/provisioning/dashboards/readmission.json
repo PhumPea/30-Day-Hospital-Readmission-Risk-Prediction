@@ -1,0 +1,311 @@
+{
+  "uid": "readmission",
+  "title": "30-Day Readmission \u2014 Service & Model Health",
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Requests / s",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(api_requests_total[1m])) by (endpoint)",
+          "legendFormat": "{{endpoint}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Latency p50 / p95 (/predict) \u2014 SLO p95 < 300 ms",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.5, sum(rate(api_request_latency_seconds_bucket{endpoint=\"/predict\"}[1m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum(rate(api_request_latency_seconds_bucket{endpoint=\"/predict\"}[1m])) by (le))",
+          "legendFormat": "p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Error rate (5xx) & invalid input",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(api_requests_total{status=~\"5..\"}[1m])) / clamp_min(sum(rate(api_requests_total[1m])),1e-9)",
+          "legendFormat": "5xx"
+        },
+        {
+          "refId": "B",
+          "expr": "rate(api_invalid_input_total[1m]) / clamp_min(sum(rate(api_requests_total[1m])),1e-9)",
+          "legendFormat": "422 invalid"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Risk score distribution (p50/p90)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.5, sum(rate(prediction_risk_score_bucket[5m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.9, sum(rate(prediction_risk_score_bucket[5m])) by (le))",
+          "legendFormat": "p90"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Follow-up rate (business: capacity 20%)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 8,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(prediction_follow_up_total[5m]) / clamp_min(rate(prediction_risk_score_count[5m]),1e-9)",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Model version in production",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 8,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "model_version_info",
+          "legendFormat": "v{{version}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Drift flags (1 = drift)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "monitoring_value{metric=\"data_drift\"}",
+          "legendFormat": "data drift"
+        },
+        {
+          "refId": "B",
+          "expr": "monitoring_value{metric=\"prediction_drift\"}",
+          "legendFormat": "prediction drift"
+        },
+        {
+          "refId": "C",
+          "expr": "monitoring_value{metric=\"concept_drift\"}",
+          "legendFormat": "concept drift"
+        },
+        {
+          "refId": "D",
+          "expr": "monitoring_value{metric=\"label_shift\"}",
+          "legendFormat": "label shift"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Live vs. reference ROC-AUC (concept drift)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 16,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "monitoring_value{metric=\"live_roc_auc\"}",
+          "legendFormat": "live"
+        },
+        {
+          "refId": "B",
+          "expr": "monitoring_value{metric=\"ref_roc_auc\"}",
+          "legendFormat": "reference"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Data drift: share of drifted features / max PSI / prediction PSI",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 16,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "monitoring_value{metric=\"drift_share\"}",
+          "legendFormat": "drift share"
+        },
+        {
+          "refId": "B",
+          "expr": "monitoring_value{metric=\"max_feature_psi\"}",
+          "legendFormat": "max PSI"
+        },
+        {
+          "refId": "C",
+          "expr": "monitoring_value{metric=\"prediction_psi\"}",
+          "legendFormat": "pred PSI"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    }
+  ],
+  "tags": [
+    "mlops"
+  ]
+}
