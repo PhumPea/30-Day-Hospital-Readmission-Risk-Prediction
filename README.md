@@ -36,21 +36,6 @@ PIPELINE_ARGS=--synthetic docker compose up --build
 curl -X POST localhost:8000/predict -H "Content-Type: application/json" -d @data/bad_samples/good_request.json
 ```
 
-## ขั้นตอนเดโมวันนำเสนอ
-
-| สิ่งที่จะโชว์ | คำสั่ง | ผลที่ควรเห็น |
-|---|---|---|
-| ข้อมูลเสีย → pipeline หยุด | `make validate-bad` | `VALIDATION FAILED` + มีบรรทัดใหม่ใน `logs/alerts.jsonl` |
-| request เสีย → ถูกปฏิเสธ | `make demo-bad-api` | ได้ 422 ทุกอัน |
-| วัด latency / throughput เทียบ SLO | `make benchmark` | `reports/benchmark.json` |
-| traffic ปกติ | `make demo-normal && make monitor` | ไม่มี drift |
-| data drift | `make demo-data-drift && make monitor` | `data_drift: true` และรอ label ก่อนเทรนใหม่ |
-| concept drift → เทรนใหม่ | `make demo-concept-drift && make retrain` | เจอ concept drift → ได้โมเดลเวอร์ชันใหม่ → ผ่าน gate → ขึ้นเป็น champion |
-| ดู registry | `make versions` | เวอร์ชัน สถานะ alias |
-| rollback | `make rollback` | champion ถอยไปตัวก่อน API โหลดใหม่เองใน 30 วิ (ดูที่ `/model`) |
-
-ถ้าเครื่องไม่มี `make` ให้เปิด `Makefile` แล้วก๊อปคำสั่งไปรันตรง ๆ
-
 ## โครงสร้างโปรเจค
 
 ```
