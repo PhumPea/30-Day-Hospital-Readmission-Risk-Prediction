@@ -97,8 +97,3 @@ python -m pipelines.flow --synthetic
 uvicorn api.main:app --port 8000
 pytest -q && ruff check .
 ```
-
-## วิธีทำงานกับ Git
-
-- ห้าม push เข้า `main` ตรง ๆ ให้แตก branch `feature/<ชื่อ>` → เปิด PR → CI ต้องผ่าน → ให้เพื่อนรีวิว → merge
-- ถ้าอยากได้หลักฐาน CI ไม่ผ่าน: เปิด PR ที่แก้ `gate.min_pr_auc: 0.9` ใน `params.yaml` แล้ว model gate จะ fail
