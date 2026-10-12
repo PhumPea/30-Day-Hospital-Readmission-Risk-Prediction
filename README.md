@@ -1,4 +1,4 @@
-# ระบบพยากรณ์ความเสี่ยงการกลับมารักษาซ้ำภายใน 30 วัน (CP413008)
+<img width="1087" height="101" alt="image" src="https://github.com/user-attachments/assets/112c8466-2533-4627-9e95-a0e706f808b2" /># ระบบพยากรณ์ความเสี่ยงการกลับมารักษาซ้ำภายใน 30 วัน (CP413008)
 
 ระบบทำนายว่าผู้ป่วยเบาหวานที่กำลังจะกลับบ้าน มีโอกาสกลับมานอนโรงพยาบาลอีกภายใน 30 วันแค่ไหน
 พยาบาลจะได้เลือกโทรติดตามคนที่เสี่ยงที่สุดประมาณ 20% ก่อน
@@ -8,7 +8,7 @@
 ## วิธีรัน (เครื่องเปล่า มีแค่ Docker)
 
 ```bash
-git clone <repo> && cd readmission-mlops
+git clone <repo> && cd 30-Day-Hospital-Readmission-Risk-Prediction
 docker compose up --build
 ```
 
